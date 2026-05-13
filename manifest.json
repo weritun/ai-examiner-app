@@ -1,0 +1,15 @@
+{
+  "name": "AI Examiner",
+  "short_name": "AIExam",
+  "start_url": "/",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#7c3aed",
+  "background_color": "#1a1a2e"
+}
