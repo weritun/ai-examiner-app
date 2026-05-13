@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+    <title>AI Examiner Mobile</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #1a1a2e; --text: #e4e4e7; --sidebar: #2b2b3a; --border: #3d3d52;
+            --accent: #7c3aed; --success: #10b981; --danger: #ef4444;
+            --card: #2d2d42; --code-bg: #0f0f1a; --font-size: 16px;
+        }
+        [data-theme="light"] {
+            --bg: #f0f0f0; --text: #2c3e50; --sidebar: #e0e0e0; --border: #ccc;
+            --accent: #3498db; --success: #27ae60; --danger: #e74c3c;
+            --card: #fff; --code-bg: #f8f9fa;
+        }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: var(--font-size); height: 100vh; display: flex; flex-direction: column; }
+        .header { background: var(--sidebar); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+        .icon-btn { background: transparent; border: none; font-size: 1.2rem; cursor: pointer; padding: 6px 10px; color: var(--text); }
+        .main { flex: 1; overflow-y: auto; padding: 16px; }
+        .screen { display: none; flex-direction: column; gap: 12px; }
+        .screen.active { display: flex; }
+        button { padding: 12px; font-size: 0.95rem; font-weight: 600; border: none; border-radius: 14px; cursor: pointer; }
+        button:active { transform: scale(0.97); }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        input, textarea, select { background: var(--code-bg); border: 1px solid var(--border); padding: 12px; border-radius: 14px; font-size: 0.9rem; color: var(--text); width: 100%; margin-bottom: 8px; }
+        .file-list { list-style: none; border: 1px solid var(--border); border-radius: 14px; max-height: 180px; overflow-y: auto; }
+        .file-item { padding: 10px; border-bottom: 1px solid var(--border); background: var(--bg); cursor: pointer; font-family: monospace; font-size: 0.75rem; }
+        .code-viewer, .result-display { background: var(--code-bg); border: 1px solid var(--border); border-radius: 14px; padding: 12px; font-family: monospace; font-size: 0.7rem; white-space: pre-wrap; max-height: 180px; overflow: auto; }
+        .history-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+        .history-header { display: flex; justify-content: space-between; font-size: 0.65rem; opacity: 0.7; margin-bottom: 6px; }
+        .history-archive-name { font-weight: bold; color: var(--accent); margin: 6px 0; font-size: 0.8rem; }
+        .bottom-nav { background: var(--sidebar); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 8px; flex-shrink: 0; }
+        .nav-item { background: transparent; display: flex; flex-direction: column; align-items: center; font-size: 0.65rem; gap: 4px; opacity: 0.6; padding: 6px 12px; border-radius: 40px; color: var(--text); }
+        .nav-item.active { opacity: 1; background: var(--accent); color: white; }
+        .nav-icon { font-size: 1.2rem; }
+        .modal { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-card { background: var(--bg); border-radius: 28px; width: 85%; max-width: 340px; padding: 28px 24px; text-align: center; }
+        .modal-card h2 { color: var(--accent); margin-bottom: 8px; }
+        .modal-footer { display: flex; gap: 12px; margin-top: 12px; }
+        .auth-error { color: var(--danger); font-size: 0.75rem; margin-top: 8px; }
+        .loader { border: 3px solid var(--border); border-top: 3px solid var(--accent); width: 30px; height: 30px; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 12px auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+        .server-status { background: var(--code-bg); padding: 6px; border-radius: 12px; font-size: 0.65rem; text-align: center; margin-bottom: 8px; }
+        .upload-row { display: flex; gap: 8px; }
+        .upload-row button { flex: 1; }
+        #userName { font-weight: bold; background: rgba(0,0,0,0.1); padding: 6px 12px; border-radius: 20px; }
+        .logout-btn { background: var(--danger); color: white; border: none; border-radius: 20px; padding: 6px 12px; margin-left: 10px; cursor: pointer; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <span id="userName">👤 Гость</span>
+    <div class="header-right">
+        <button class="icon-btn" id="fontMinus">A-</button>
+        <button class="icon-btn" id="fontPlus">A+</button>
+        <button class="icon-btn" id="themeToggle">🌓</button>
+        <button class="logout-btn hidden" id="logoutBtn">Выйти</button>
+    </div>
+</div>
+
+<main class="main">
+    <div id="screenCheck" class="screen active">
+        <div id="serverStatus" class="server-status">🔍 Подключение к серверу...</div>
+        <div class="upload-row">
+            <button class="btn-primary" id="uploadZipBtn">📦 ZIP-архив</button>
+            <button class="btn-primary" id="pasteTextBtn">📝 Вставить код</button>
+        </div>
+        <input type="file" id="zipInput" accept=".zip" style="display:none">
+        <div id="pasteArea" style="display:none">
+            <textarea id="pasteCode" rows="5" placeholder="Вставьте код сюда..."></textarea>
+            <button class="btn-success" id="addPasteBtn">➕ Добавить</button>
+        </div>
+        <div id="statusLabel">Ожидание загрузки...</div>
+        <div><strong>📁 Файлы кода:</strong></div>
+        <ul id="fileList" class="file-list"></ul>
+        <button class="btn-danger" id="clearFilesBtn">🗑 Удалить всё</button>
+        <div><strong>📄 Просмотр файла:</strong></div>
+        <div id="codeViewer" class="code-viewer">Выберите файл</div>
+        <div><strong>🤖 Отчёт AI:</strong></div>
+        <div id="resultDisplay" class="result-display">Результат появится здесь</div>
+        <button class="btn-success" id="checkBtn" disabled>🚀 Проверить проект</button>
+        <div id="loader" class="loader hidden"></div>
+    </div>
+
+    <div id="screenHistory" class="screen">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="color:var(--accent)">📜 История проверок</h3>
+            <button class="btn-outline" id="refreshHistoryBtn" style="padding: 6px 12px;">🔄</button>
+        </div>
+        <div id="historyList"></div>
+    </div>
+
+    <div id="screenSettings" class="screen">
+        <h3>⚙️ Настройки</h3>
+        <label>🤖 Модель Groq:</label>
+        <select id="aiModel">
+            <option value="llama-3.3-70b-versatile">Llama 3.3 70B (рекомендуется)</option>
+            <option value="llama-3.1-8b-instant">Llama 3.1 8B (очень быстро)</option>
+            <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+        </select>
+        <button class="btn-success" id="saveSettingsBtn">💾 Сохранить</button>
+    </div>
+</main>
+
+<div class="bottom-nav">
+    <button class="nav-item active" data-screen="check"><span class="nav-icon">📝</span><span>Проверка</span></button>
+    <button class="nav-item" data-screen="history"><span class="nav-icon">📂</span><span>История</span></button>
+    <button class="nav-item" data-screen="settings"><span class="nav-icon">⚙️</span><span>Настройки</span></button>
+</div>
+
+<div id="authModal" class="modal">
+    <div class="modal-card">
+        <h2>🤖 AI EXAMINER</h2>
+        <p style="margin-bottom: 16px;">Автоматическая проверка проектов</p>
+        <input type="text" id="modalUsername" placeholder="Логин" autocomplete="off" value="admin">
+        <input type="password" id="modalPassword" placeholder="Пароль" autocomplete="off" value="admin">
+        <div id="modalError" class="auth-error"></div>
+        <div class="modal-footer">
+            <button class="btn-success" id="modalLoginBtn">Войти</button>
+            <button class="btn-primary" id="modalRegisterBtn">Регистрация</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// =====================================================
+// НАСТРОЙКИ
+// =====================================================
+let currentUser = null;
+let loadedFiles = {};
+let currentTheme = localStorage.getItem('theme') || 'dark';
+let currentFontSize = parseInt(localStorage.getItem('fontSize')) || 16;
+let GROQ_API_KEY = null;
+
+const API_URL = 'https://ai-examiner-api.onrender.com';
+const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+
+const ALLOWED_EXTS = ['.cs', '.xaml', '.csproj', '.sln', '.config', '.resx', '.sql', '.json'];
+const IGNORED_DIRS = ['bin', 'obj', 'Debug', 'Release', 'packages', '.git', '.vs'];
+
+// =====================================================
+// ПОЛНЫЙ ПРОМПТ
+// =====================================================
+const SYSTEM_PROMPT = "Ты — эксперт демонстрационного экзамена ГИА ДЭ по специальности 09.02.07 «Информационные системы и программирование». Уровень экзамена — государственная итоговая аттестация (ГИА) профильного уровня.\n\nТвоя задача — проверить выполнение Модуля 2: «Разработка алгоритма и создание приложения» строго по приведённым ниже критериям.\n\nОценивай каждый подкритерий по шкале:\n- полностью соответствует — максимальный балл за элемент\n- частично соответствует — 50% от максимального балла за элемент\n- не соответствует — 0 баллов\n\nВАЖНО: Запрещено использовать любые markdown-символы. Пиши обычным плоским текстом. Для списков используй дефисы (-) или цифры.\n\nКритерий 1. Формирование алгоритмов (макс. 2 балла)\n- Алгоритм оформлен в виде блок-схемы — 1 балл\n- Блок-схема соответствует ГОСТ 19.701-90 — 0,5 балла\n- Документ представлен в формате PDF — 0,5 балла\n\nКритерий 2. Разработка программных модулей (макс. 11 баллов)\n1. Единый согласованный внешний вид — 0,5 балла\n2. Заголовок окна соответствует назначению — 1 балл\n3. Установлена иконка приложения и логотип компании — 1 балл\n4. Идентификаторы отражают назначение и соответствуют соглашению об именовании — 1 балл\n5. Не более одной команды в строке — 1 балл\n6. База данных подключена к приложению — 1 балл\n7. Список товаров отображает информацию из базы данных — 1 балл\n8. Реализована авторизация с разграничением ролей — 1 балл\n9. Реализован выход на главный экран — 0,5 балла\n10. Отображаются ФИО авторизованного пользователя — 0,5 балла\n11. Список товаров содержит все поля — 0,5 балла\n12. Реализована подсветка строк (скидка более 15%, нет на складе, цена со скидкой) — 2 балла\n\nКритерий 3. Отладка (макс. 2 балла)\n- Приложение корректно работает, нет аварийных завершений — 1 балл\n- Создан документ DOCX со скриншотами — 1 балл\n\nФормат ответа:\n\nОбщая информация\n- Уровень экзамена: ГИА ДЭ профильный уровень\n- Итого баллов за модуль 2: X из 15\n\nДетальная проверка\n\nМодуль 2: Разработка алгоритма и создание приложения\n\nКритерий 1: Формирование алгоритмов (2 балла)\n- Блок-схема по ГОСТ 19.701-90: [балл] — [комментарий]\n- Формат PDF: [балл] — [комментарий]\n- Итого по критерию 1: [сумма] из 2\n\nКритерий 2: Разработка программных модулей (11 баллов)\n- Единый стиль интерфейса: [балл] — [комментарий]\n- Заголовок окна и иконка: [балл] — [комментарий]\n- Логотип компании: [балл] — [комментарий]\n- Именование идентификаторов: [балл] — [комментарий]\n- Форматирование кода: [балл] — [комментарий]\n- Подключение базы данных: [балл] — [комментарий]\n- Отображение списка товаров из БД: [балл] — [комментарий]\n- Авторизация и роли: [балл] — [комментарий]\n- Выход на главный экран: [балл] — [комментарий]\n- Отображение ФИО пользователя: [балл] — [комментарий]\n- Полнота данных в списке товаров: [балл] — [комментарий]\n- Подсветка строк: [балл] — [комментарий]\n- Итого по критерию 2: [сумма] из 11\n\nКритерий 3: Отладка (2 балла)\n- Корректная работа без аварийных завершений: [балл] — [комментарий]\n- Наличие DOCX со скриншотами: [балл] — [комментарий]\n- Итого по критерию 3: [сумма] из 2\n\nОбщая сумма баллов за модуль 2: [сумма] из 15\nИтого баллов за модуль 2: [сумма]/15\n\nИтоговые замечания по модулю 2\n- Что выполнено корректно\n- Что выполнено частично или с ошибками\n- Что не выполнено";
+
+// =====================================================
+// ЗАГРУЗКА API КЛЮЧА С СЕРВЕРА
+// =====================================================
+async function loadApiKey() {
+    try {
+        const response = await fetch(API_URL + '/get_groq_key');
+        if (!response.ok) {
+            throw new Error('Ошибка загрузки ключа: ' + response.status);
+        }
+        const data = await response.json();
+        GROQ_API_KEY = data.key;
+        console.log('✅ API ключ загружен с сервера');
+        return true;
+    } catch(e) {
+        console.error('❌ Ошибка загрузки ключа:', e);
+        document.getElementById('resultDisplay').innerText = '❌ Ошибка: не удалось загрузить API ключ с сервера\n\nПроверьте подключение к интернету.';
+        return false;
+    }
+}
+
+// =====================================================
+// ФУНКЦИИ API
+// =====================================================
+async function apiCall(endpoint, method, body) {
+    const res = await fetch(API_URL + endpoint, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Ошибка');
+    return data;
+}
+
+async function checkServer() {
+    const div = document.getElementById('serverStatus');
+    div.innerHTML = '🔍 Проверка...';
+    try {
+        const res = await fetch(API_URL + '/');
+        if (res.ok) {
+            div.innerHTML = '✅ Сервер подключен';
+            return true;
+        }
+    } catch(e) {
+        div.innerHTML = '❌ Ошибка подключения';
+    }
+    return false;
+}
+
+// =====================================================
+// АВТОРИЗАЦИЯ
+// =====================================================
+async function handleLogin(username, password) {
+    try {
+        const data = await apiCall('/login', 'POST', { username, password });
+        currentUser = data.user;
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        document.getElementById('userName').innerHTML = '👤 ' + currentUser.username;
+        document.getElementById('logoutBtn').classList.remove('hidden');
+        document.getElementById('authModal').style.display = 'none';
+        document.getElementById('checkBtn').disabled = Object.keys(loadedFiles).length === 0;
+        return true;
+    } catch(e) {
+        document.getElementById('modalError').innerText = e.message;
+        return false;
+    }
+}
+
+async function handleRegister(username, password) {
+    try {
+        await apiCall('/register', 'POST', { username, password });
+        document.getElementById('modalError').innerText = '✅ Создан! Теперь войдите.';
+        return true;
+    } catch(e) {
+        document.getElementById('modalError').innerText = e.message;
+        return false;
+    }
+}
+
+function logout() {
+    currentUser = null;
+    localStorage.removeItem('currentUser');
+    document.getElementById('userName').innerHTML = '👤 Гость';
+    document.getElementById('logoutBtn').classList.add('hidden');
+    document.getElementById('authModal').style.display = 'flex';
+    document.getElementById('checkBtn').disabled = true;
+}
+
+// =====================================================
+// ЗАГРУЗКА ФАЙЛОВ
+// =====================================================
+function shouldIgnorePath(path) {
+    const parts = path.split('/');
+    for (let p of parts) {
+        if (IGNORED_DIRS.includes(p)) return true;
+    }
+    return false;
+}
+
+function addFile(name, content) {
+    if (content.length > 2000) {
+        content = content.substring(0, 2000) + '\n\n... (файл обрезан)';
+    }
+    loadedFiles[name] = content;
+    const li = document.createElement('li');
+    li.className = 'file-item';
+    li.innerText = name.length > 45 ? '...' + name.slice(-42) : name;
+    li.onclick = () => document.getElementById('codeViewer').innerText = content;
+    document.getElementById('fileList').appendChild(li);
+    const cnt = Object.keys(loadedFiles).length;
+    document.getElementById('statusLabel').innerHTML = '✅ Загружено: ' + cnt + ' файлов';
+    if (currentUser && cnt > 0) document.getElementById('checkBtn').disabled = false;
+}
+
+document.getElementById('uploadZipBtn').onclick = () => document.getElementById('zipInput').click();
+document.getElementById('zipInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('statusLabel').innerText = 'Распаковка...';
+    try {
+        const zip = await JSZip.loadAsync(file);
+        let cnt = 0;
+        for (let [path, entry] of Object.entries(zip.files)) {
+            if (cnt >= 25) break;
+            if (entry.dir) continue;
+            if (shouldIgnorePath(path)) continue;
+            const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
+            if (!ALLOWED_EXTS.includes(ext)) continue;
+            const content = await entry.async('string');
+            if (content && content.trim()) {
+                addFile(path, content);
+                cnt++;
+            }
+        }
+        if (cnt === 0) document.getElementById('statusLabel').innerHTML = '❌ Нет файлов кода';
+    } catch(err) { alert('Ошибка: ' + err.message); }
+});
+
+document.getElementById('pasteTextBtn').onclick = () => {
+    const area = document.getElementById('pasteArea');
+    area.style.display = area.style.display === 'none' ? 'block' : 'none';
+};
+document.getElementById('addPasteBtn').onclick = () => {
+    const text = document.getElementById('pasteCode').value.trim();
+    if (!text) { alert('Введите код'); return; }
+    addFile('pasted_' + Date.now() + '.txt', text);
+    document.getElementById('pasteCode').value = '';
+    document.getElementById('pasteArea').style.display = 'none';
+};
+document.getElementById('clearFilesBtn').onclick = () => {
+    loadedFiles = {};
+    document.getElementById('fileList').innerHTML = '';
+    document.getElementById('codeViewer').innerText = 'Выберите файл';
+    document.getElementById('statusLabel').innerText = 'Очищено';
+    document.getElementById('checkBtn').disabled = true;
+};
+
+// =====================================================
+// ПРОВЕРКА ПРОЕКТА (GROQ)
+// =====================================================
+document.getElementById('checkBtn').onclick = async () => {
+    if (!currentUser) { alert('Сначала войдите'); return; }
+    if (Object.keys(loadedFiles).length === 0) { alert('Загрузите код'); return; }
+    
+    // Загружаем API ключ, если еще не загружен
+    if (!GROQ_API_KEY) {
+        const loaded = await loadApiKey();
+        if (!loaded) return;
+    }
+    
+    document.getElementById('checkBtn').disabled = true;
+    document.getElementById('loader').classList.remove('hidden');
+    document.getElementById('resultDisplay').innerText = '⏳ Анализ проекта через Groq AI...';
+    
+    let prompt = 'Файлы проекта:\n\n';
+    let totalLen = 0;
+    let fileCount = 0;
+    for (let [name, content] of Object.entries(loadedFiles)) {
+        if (fileCount >= 15) break;
+        const section = '--- ' + name + ' ---\n' + content + '\n\n';
+        if (totalLen + section.length > 7000) break;
+        prompt += section;
+        totalLen += section.length;
+        fileCount++;
+    }
+    
+    const model = document.getElementById('aiModel').value;
+    
+    try {
+        const response = await fetch(GROQ_BASE_URL + '/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + GROQ_API_KEY,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: model,
+                messages: [
+                    { role: 'system', content: SYSTEM_PROMPT },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.3,
+                max_tokens: 4096
+            })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error?.message || 'Ошибка API');
+        
+        let result = data.choices[0].message.content;
+        result = result.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+        document.getElementById('resultDisplay').innerText = result;
+        
+        try {
+            await apiCall('/save_check', 'POST', {
+                username: currentUser.username,
+                archive_name: 'mobile_' + Date.now(),
+                files_count: Object.keys(loadedFiles).length,
+                result_text: result,
+                score: 'N/A'
+            });
+        } catch(e) {}
+    } catch(err) {
+        document.getElementById('resultDisplay').innerText = '❌ Ошибка: ' + err.message;
+    } finally {
+        document.getElementById('loader').classList.add('hidden');
+        document.getElementById('checkBtn').disabled = false;
+    }
+};
+
+// =====================================================
+// ИСТОРИЯ
+// =====================================================
+async function refreshHistory() {
+    const histDiv = document.getElementById('historyList');
+    if (!currentUser) {
+        histDiv.innerHTML = '<div style="text-align:center;padding:20px">Войдите для просмотра</div>';
+        return;
+    }
+    histDiv.innerHTML = '<div class="loader"></div>';
+    try {
+        const data = await apiCall('/history/' + currentUser.username, 'GET');
+        histDiv.innerHTML = '';
+        if (!data || data.length === 0) {
+            histDiv.innerHTML = '<div style="text-align:center;padding:20px">📭 История пуста</div>';
+            return;
+        }
+        for (let item of data) {
+            const card = document.createElement('div');
+            card.className = 'history-card';
+            const preview = (item.full_result || item.result_text || '').substring(0, 150);
+            card.innerHTML = '<div class="history-header">' +
+                '<span>📅 ' + (item.date || 'дата не указана') + '</span>' +
+                '<span>📁 ' + (item.files_count || 0) + ' файлов</span>' +
+                '</div>' +
+                '<div class="history-archive-name">📦 ' + (item.archive_name || 'без имени') + '</div>' +
+                '<div style="font-size:0.7rem">' + escapeHtml(preview) + (preview.length >= 150 ? '...' : '') + '</div>' +
+                '<button class="btn-outline" style="margin-top:8px;padding:8px" onclick="showFullResult(\'' + encodeURIComponent(item.full_result || item.result_text || '') + '\')">📋 Полный отчёт</button>';
+            histDiv.appendChild(card);
+        }
+    } catch(e) {
+        histDiv.innerHTML = '<div style="color:var(--danger)">❌ ' + e.message + '</div>';
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+window.showFullResult = (text) => alert(decodeURIComponent(text));
+document.getElementById('refreshHistoryBtn').onclick = () => refreshHistory();
+
+// =====================================================
+// НАВИГАЦИЯ
+// =====================================================
+document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const scr = btn.getAttribute('data-screen');
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('screen' + scr.charAt(0).toUpperCase() + scr.slice(1)).classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (scr === 'history') refreshHistory();
+    });
+});
+
+// =====================================================
+// НАСТРОЙКИ ВНЕШНЕГО ВИДА
+// =====================================================
+function applyTheme() {
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    document.body.style.background = 'var(--bg)';
+}
+function applyFont() {
+    document.documentElement.style.setProperty('--font-size', currentFontSize + 'px');
+}
+document.getElementById('themeToggle').onclick = () => {
+    currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+    localStorage.setItem('theme', currentTheme);
+    applyTheme();
+};
+document.getElementById('fontMinus').onclick = () => { if (currentFontSize > 12) currentFontSize--; applyFont(); localStorage.setItem('fontSize', currentFontSize); };
+document.getElementById('fontPlus').onclick = () => { if (currentFontSize < 24) currentFontSize++; applyFont(); localStorage.setItem('fontSize', currentFontSize); };
+document.getElementById('saveSettingsBtn').onclick = () => {
+    localStorage.setItem('ai_model', document.getElementById('aiModel').value);
+    alert('✅ Настройки сохранены');
+};
+const savedModel = localStorage.getItem('ai_model');
+if (savedModel) document.getElementById('aiModel').value = savedModel;
+applyTheme();
+applyFont();
+
+// =====================================================
+// ЗАПУСК
+// =====================================================
+document.getElementById('logoutBtn').onclick = () => logout();
+document.getElementById('modalLoginBtn').onclick = async () => {
+    const ok = await handleLogin(
+        document.getElementById('modalUsername').value,
+        document.getElementById('modalPassword').value
+    );
+    if (ok) refreshHistory();
+};
+document.getElementById('modalRegisterBtn').onclick = async () => {
+    await handleRegister(
+        document.getElementById('modalUsername').value,
+        document.getElementById('modalPassword').value
+    );
+};
+
+// Загружаем API ключ при старте
+loadApiKey();
+
+checkServer();
+const savedUser = localStorage.getItem('currentUser');
+if (savedUser) {
+    try {
+        currentUser = JSON.parse(savedUser);
+        document.getElementById('userName').innerHTML = '👤 ' + currentUser.username;
+        document.getElementById('logoutBtn').classList.remove('hidden');
+        document.getElementById('authModal').style.display = 'none';
+        refreshHistory();
+    } catch(e) {
+        document.getElementById('authModal').style.display = 'flex';
+    }
+} else {
+    document.getElementById('authModal').style.display = 'flex';
+}
+</script>
+</body>
+</html>
